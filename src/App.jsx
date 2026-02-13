@@ -155,7 +155,8 @@ const App = () => {
     }
 
     // ── LV Logic ───────────────────────────────────────────────────────────────
-    if (isLV && wiresStr) {
+    // B (Blank Arm) gets no insulators at all
+    if (isLV && wiresStr && config !== 'B') {
       if (boltSizingResult.isPinArm) {
         const finalPinQty = baseWireQty * armCount;
         items.push({ id: 'INS-LV-PIN', name: 'LV Pin Insulator', qty: finalPinQty, category: 'Insulators' });
@@ -173,7 +174,8 @@ const App = () => {
     }
 
     // ── HV & LV Insulator Logic (unified via parseConfig) ──────────────────────
-    if (isHV) {
+    // B (Blank Arm) gets no insulators at all
+    if (isHV && config !== 'B') {
       const { termCount, postQty, hasEDO, hasDelta } = parseConfig(config, baseWireQty, armCount);
       const voltageLabel = `${voltage}kV`;
 
@@ -203,6 +205,7 @@ const App = () => {
     }
 
     // ── Timber Arm Braces ─────────────────────────────────────────────────────
+    // B (Blank Arm) still gets braces; TFLY variants don't
     if (material === 'T' && config !== 'TFLYW' && config !== 'TFLYS') {
       const braceSize = parseInt(lengthRaw) >= 30 ? "900mm" : "763mm";
       const shortBoltSize = dimension === "A" ? (boltSizingResult.isPinArm ? "110mm" : "140mm") : (dimension === "E" ? "180mm" : "140mm");
@@ -210,6 +213,14 @@ const App = () => {
       items.push({ id: 'WASH-M12-50', name: 'M12x50x50 Square Washer', qty: isEDO ? 2 : 3, category: 'Hardware' });
       items.push({ id: 'NUT-M12', name: 'M12 Nut', qty: isEDO ? 2 : 3, category: 'Hardware' });
       items.push({ id: `BOLT-M12-${shortBoltSize}`, name: `Short M12x${shortBoltSize} Brace Bolt`, qty: isEDO ? 1 : 2, category: 'Hardware' });
+      items.push({ id: `BOLT-M12-${boltSizingResult.longBraceBoltSize}`, name: `Long M12x${boltSizingResult.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
+    }
+
+    // ── Steel Arm Braces ───────────────────────────────────────────────────────
+    // Steel arms (non-LVTX) use adjustable braces instead of fixed timber braces
+    if (material === 'S' && !isLVTX && config !== 'TFLYW' && config !== 'TFLYS') {
+      items.push({ id: 'BRACE-STEEL-ADJ', name: 'Adjustable Steel Arm Brace', qty: 2, category: 'Hardware' });
+      items.push({ id: 'BOLT-M12-ADJ-BRACE', name: 'M12 Adjustable Steel Arm Brace Bolt', qty: 2, category: 'Hardware' });
       items.push({ id: `BOLT-M12-${boltSizingResult.longBraceBoltSize}`, name: `Long M12x${boltSizingResult.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
     }
 
@@ -404,3 +415,4 @@ const App = () => {
 };
 
 export default App;
+
