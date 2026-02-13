@@ -117,46 +117,6 @@ const App = () => {
     return { kingBoltSize, spacerBoltSize, longBraceBoltSize, isPinArm, armWidth: totalArmWidth, isSteel, tBracketBoltSize };
   }, [selections, poleWidth]);
 
-  const options = CONFIG_DATA[currentSection] || [];
-
-  const generatedCode = useMemo(() => SECTIONS.map(s => selections[s] || '—').join('-'), [selections]);
-
-  const boltSizingResult = useMemo(() => {
-    if (!selections['Dimension']) return null;
-    let singleArmWidth = 100; 
-    const isPinArm = EXPLICIT_PIN_ARMS.includes(selections['Configuration']) || 
-                    (["LV", "LVTX"].includes(selections['Voltage']) && selections['Configuration'] === "PN") || 
-                    (["11", "33", "66"].includes(selections['Voltage']) && selections['Configuration'] === "PS");
-    
-    if (selections['Dimension'] === "A") singleArmWidth = isPinArm ? 75 : 100;
-    else if (selections['Dimension'] === "E") singleArmWidth = 125;
-    else if (selections['Dimension'] === "Z") singleArmWidth = 75;
-
-    const totalArmWidth = singleArmWidth * (parseInt(selections['Number']) || 1);
-    const totalRequiredKB = (parseInt(poleWidth) || 0) + totalArmWidth + 60; 
-    const kingBoltIdx = BOLT_SIZES.findIndex(s => s >= totalRequiredKB);
-
-    // Steel arms (including LVTX) don't use conical/M20 washers so king bolt is one size down
-    const isSteel = selections['Material'] === 'S' || selections['Voltage'] === 'LVTX';
-    const steelKingBoltIdx = kingBoltIdx > 0 ? kingBoltIdx - 1 : 0;
-    const kingBoltSize = isSteel
-      ? BOLT_SIZES[steelKingBoltIdx]
-      : (kingBoltIdx !== -1 ? BOLT_SIZES[kingBoltIdx] : BOLT_SIZES[BOLT_SIZES.length - 1]);
-    const spacerBoltSize = (kingBoltIdx > 0) ? BOLT_SIZES[kingBoltIdx - 1] : BOLT_SIZES[0];
-
-    const totalRequiredLB = (parseInt(poleWidth) || 0) + 50;
-    const braceBoltIdx = BOLT_SIZES.findIndex(s => s >= totalRequiredLB);
-    const longBraceBoltSize = braceBoltIdx !== -1 ? BOLT_SIZES[braceBoltIdx] : BOLT_SIZES[BOLT_SIZES.length - 1];
-
-    // LVTX T bracket M16 bolt: poleWidth + 40mm rounded up to nearest bolt size
-    const tBracketBoltRequired = (parseInt(poleWidth) || 0) + 40;
-    const tBracketBoltIdx = BOLT_SIZES.findIndex(s => s >= tBracketBoltRequired);
-    const tBracketBoltSize = tBracketBoltIdx !== -1 ? BOLT_SIZES[tBracketBoltIdx] : BOLT_SIZES[BOLT_SIZES.length - 1];
-    
-    return { kingBoltSize, spacerBoltSize, longBraceBoltSize, isPinArm, armWidth: totalArmWidth, isSteel, tBracketBoltSize };
-  }, [selections, poleWidth]);
-
-    // Generate pick list for a given level configuration
   const generatePickList = useCallback((levelSelections, levelPoleWidth, levelBoltSizing) => {
     if (!isFinalized || !levelBoltSizing) return [];
     const { Voltage: voltage, Configuration: config, Material: material, Dimension: dimension, Length: lengthRaw, Number: num, Wires: wiresStr } = selections;
