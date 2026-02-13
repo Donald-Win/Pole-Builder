@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   RefreshCcw, 
   Layers, 
@@ -67,11 +67,15 @@ const parseConfig = (config, baseWireQty, armCount) => {
 };
 
 const App = () => {
+  // Multi-level state: array of completed crossarms
+  const [levels, setLevels] = useState([]);
+  const [currentLevel, setCurrentLevel] = useState(1);
   const [selections, setSelections] = useState({});
   const [activeStep, setActiveStep] = useState(0);
   const [poleWidth, setPoleWidth] = useState(150); 
-  const [isFinalized, setIsFinalized] = useState(false);
   const [showPoleInput, setShowPoleInput] = useState(false);
+  const [showLevelSummary, setShowLevelSummary] = useState(false);
+  const [isFinalized, setIsFinalized] = useState(false);
 
   const currentSection = SECTIONS[activeStep];
   const options = CONFIG_DATA[currentSection] || [];
@@ -113,8 +117,48 @@ const App = () => {
     return { kingBoltSize, spacerBoltSize, longBraceBoltSize, isPinArm, armWidth: totalArmWidth, isSteel, tBracketBoltSize };
   }, [selections, poleWidth]);
 
-  const pickList = useMemo(() => {
-    if (!isFinalized || !boltSizingResult) return [];
+  const options = CONFIG_DATA[currentSection] || [];
+
+  const generatedCode = useMemo(() => SECTIONS.map(s => selections[s] || '—').join('-'), [selections]);
+
+  const boltSizingResult = useMemo(() => {
+    if (!selections['Dimension']) return null;
+    let singleArmWidth = 100; 
+    const isPinArm = EXPLICIT_PIN_ARMS.includes(selections['Configuration']) || 
+                    (["LV", "LVTX"].includes(selections['Voltage']) && selections['Configuration'] === "PN") || 
+                    (["11", "33", "66"].includes(selections['Voltage']) && selections['Configuration'] === "PS");
+    
+    if (selections['Dimension'] === "A") singleArmWidth = isPinArm ? 75 : 100;
+    else if (selections['Dimension'] === "E") singleArmWidth = 125;
+    else if (selections['Dimension'] === "Z") singleArmWidth = 75;
+
+    const totalArmWidth = singleArmWidth * (parseInt(selections['Number']) || 1);
+    const totalRequiredKB = (parseInt(poleWidth) || 0) + totalArmWidth + 60; 
+    const kingBoltIdx = BOLT_SIZES.findIndex(s => s >= totalRequiredKB);
+
+    // Steel arms (including LVTX) don't use conical/M20 washers so king bolt is one size down
+    const isSteel = selections['Material'] === 'S' || selections['Voltage'] === 'LVTX';
+    const steelKingBoltIdx = kingBoltIdx > 0 ? kingBoltIdx - 1 : 0;
+    const kingBoltSize = isSteel
+      ? BOLT_SIZES[steelKingBoltIdx]
+      : (kingBoltIdx !== -1 ? BOLT_SIZES[kingBoltIdx] : BOLT_SIZES[BOLT_SIZES.length - 1]);
+    const spacerBoltSize = (kingBoltIdx > 0) ? BOLT_SIZES[kingBoltIdx - 1] : BOLT_SIZES[0];
+
+    const totalRequiredLB = (parseInt(poleWidth) || 0) + 50;
+    const braceBoltIdx = BOLT_SIZES.findIndex(s => s >= totalRequiredLB);
+    const longBraceBoltSize = braceBoltIdx !== -1 ? BOLT_SIZES[braceBoltIdx] : BOLT_SIZES[BOLT_SIZES.length - 1];
+
+    // LVTX T bracket M16 bolt: poleWidth + 40mm rounded up to nearest bolt size
+    const tBracketBoltRequired = (parseInt(poleWidth) || 0) + 40;
+    const tBracketBoltIdx = BOLT_SIZES.findIndex(s => s >= tBracketBoltRequired);
+    const tBracketBoltSize = tBracketBoltIdx !== -1 ? BOLT_SIZES[tBracketBoltIdx] : BOLT_SIZES[BOLT_SIZES.length - 1];
+    
+    return { kingBoltSize, spacerBoltSize, longBraceBoltSize, isPinArm, armWidth: totalArmWidth, isSteel, tBracketBoltSize };
+  }, [selections, poleWidth]);
+
+    // Generate pick list for a given level configuration
+  const generatePickList = useCallback((levelSelections, levelPoleWidth, levelBoltSizing) => {
+    if (!isFinalized || !levelBoltSizing) return [];
     const { Voltage: voltage, Configuration: config, Material: material, Dimension: dimension, Length: lengthRaw, Number: num, Wires: wiresStr } = selections;
     const armCount = parseInt(num) || 1;
     const isHV = ["11", "33", "66"].includes(voltage);
@@ -125,14 +169,14 @@ const App = () => {
 
     const items = [{
       id: `${material}${isHV ? 'HV' : 'LV'}-${config}-${dimension}-${lengthRaw}`,
-      name: `${material === 'T' ? '' : MATERIAL_MAP[material] + ' '}${isHV ? 'HV' : 'LV'} ${armCount === 2 ? 'Double' : 'Single'} ${config === "EDO" ? 'DDO Arm' : (boltSizingResult.isPinArm ? 'Pin Arm' : 'Crossarm')} - ${DIMENSION_MAP[dimension]} x ${(parseInt(lengthRaw)/10).toFixed(1)}m`,
+      name: `${material === 'T' ? '' : MATERIAL_MAP[material] + ' '}${isHV ? 'HV' : 'LV'} ${armCount === 2 ? 'Double' : 'Single'} ${config === "EDO" ? 'DDO Arm' : (levelBoltSizing.isPinArm ? 'Pin Arm' : 'Crossarm')} - ${DIMENSION_MAP[dimension]} x ${(parseInt(lengthRaw)/10).toFixed(1)}m`,
       qty: armCount, category: 'Main Arm'
     }];
 
     // ── King Bolt Kit ─────────────────────────────────────────────────────────
     // TFLYW/TFLYS mount differently and have their own hardware instead
     if (config !== 'TFLYW' && config !== 'TFLYS') {
-      items.push({ id: `BOLT-M16-${boltSizingResult.kingBoltSize}`, name: `King Bolt (M16x${boltSizingResult.kingBoltSize}mm)`, qty: 1, category: 'Hardware' });
+      items.push({ id: `BOLT-M16-${levelBoltSizing.kingBoltSize}`, name: `King Bolt (M16x${levelBoltSizing.kingBoltSize}mm)`, qty: 1, category: 'Hardware' });
       items.push({ id: 'WASH-M16-50-KB', name: 'M16x50x50 Square Washer', qty: 2, category: 'Hardware' });
       items.push({ id: 'NUT-M16-KB', name: 'M16 Nut', qty: 1, category: 'Hardware' });
       // Timber arms only: conical washer seats the king bolt against the wood grain
@@ -157,7 +201,7 @@ const App = () => {
     // ── LV Logic ───────────────────────────────────────────────────────────────
     // B (Blank Arm) gets no insulators at all
     if (isLV && wiresStr && config !== 'B') {
-      if (boltSizingResult.isPinArm) {
+      if (levelBoltSizing.isPinArm) {
         const finalPinQty = baseWireQty * armCount;
         items.push({ id: 'INS-LV-PIN', name: 'LV Pin Insulator', qty: finalPinQty, category: 'Insulators' });
       } else if (config === "T" || config === "TT" || config.startsWith("TPS") || config === "TFLYW" || config === "TFLYS") {
@@ -208,12 +252,12 @@ const App = () => {
     // B (Blank Arm) still gets braces; TFLY variants don't
     if (material === 'T' && config !== 'TFLYW' && config !== 'TFLYS') {
       const braceSize = parseInt(lengthRaw) >= 30 ? "900mm" : "763mm";
-      const shortBoltSize = dimension === "A" ? (boltSizingResult.isPinArm ? "110mm" : "140mm") : (dimension === "E" ? "180mm" : "140mm");
+      const shortBoltSize = dimension === "A" ? (levelBoltSizing.isPinArm ? "110mm" : "140mm") : (dimension === "E" ? "180mm" : "140mm");
       items.push({ id: `BRACE-${braceSize.substring(0,3)}`, name: `${braceSize} Arm Brace`, qty: isEDO ? 1 : 2, category: 'Hardware' });
       items.push({ id: 'WASH-M12-50', name: 'M12x50x50 Square Washer', qty: isEDO ? 2 : 3, category: 'Hardware' });
       items.push({ id: 'NUT-M12', name: 'M12 Nut', qty: isEDO ? 2 : 3, category: 'Hardware' });
       items.push({ id: `BOLT-M12-${shortBoltSize}`, name: `Short M12x${shortBoltSize} Brace Bolt`, qty: isEDO ? 1 : 2, category: 'Hardware' });
-      items.push({ id: `BOLT-M12-${boltSizingResult.longBraceBoltSize}`, name: `Long M12x${boltSizingResult.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
+      items.push({ id: `BOLT-M12-${levelBoltSizing.longBraceBoltSize}`, name: `Long M12x${levelBoltSizing.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
     }
 
     // ── Steel Arm Braces ───────────────────────────────────────────────────────
@@ -221,7 +265,7 @@ const App = () => {
     if (material === 'S' && !isLVTX && config !== 'TFLYW' && config !== 'TFLYS') {
       items.push({ id: 'BRACE-STEEL-ADJ', name: 'Adjustable Steel Arm Brace', qty: 2, category: 'Hardware' });
       items.push({ id: 'BOLT-M12-ADJ-BRACE', name: 'M12 Adjustable Steel Arm Brace Bolt', qty: 2, category: 'Hardware' });
-      items.push({ id: `BOLT-M12-${boltSizingResult.longBraceBoltSize}`, name: `Long M12x${boltSizingResult.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
+      items.push({ id: `BOLT-M12-${levelBoltSizing.longBraceBoltSize}`, name: `Long M12x${levelBoltSizing.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
     }
 
     // ── TFLYW — Termination Fly Arm on Double Wooden Arm ───────────────────────
@@ -248,21 +292,49 @@ const App = () => {
       items.push({ id: 'BRACKET-T-STEEL', name: 'Steel T Bracket', qty: 1, category: 'Hardware' });
       items.push({ id: 'BOLT-M12-140-TB', name: 'M12x140mm Bolt (T Bracket)', qty: 2, category: 'Hardware' });
       items.push({ id: 'WASH-M12-50-TB', name: 'M12x50x50 Square Washer (T Bracket)', qty: 4, category: 'Hardware' });
-      items.push({ id: `BOLT-M16-${boltSizingResult.tBracketBoltSize}-TB`, name: `M16x${boltSizingResult.tBracketBoltSize}mm Bolt (T Bracket Through-Pole)`, qty: 1, category: 'Hardware' });
+      items.push({ id: `BOLT-M16-${levelBoltSizing.tBracketBoltSize}-TB`, name: `M16x${levelBoltSizing.tBracketBoltSize}mm Bolt (T Bracket Through-Pole)`, qty: 1, category: 'Hardware' });
       items.push({ id: 'WASH-M16-50-TB', name: 'M16x50x50 Square Washer (T Bracket)', qty: 2, category: 'Hardware' });
     }
 
     // ── Double Arm Spacer ──────────────────────────────────────────────────────
-    // 1× spacer bolt per double arm assembly; pipe is poleWidth − 5mm
+    // 1× spacer bolt per double arm assembly; pipe is levelPoleWidth − 5mm
     if (armCount === 2) {
-      const spacerPipeLength = (parseInt(poleWidth) || 0) - 5;
-      items.push({ id: `BOLT-M16-${boltSizingResult.spacerBoltSize}`, name: `Spacer Bolt (M16x${boltSizingResult.spacerBoltSize}mm)`, qty: 1, category: 'Hardware' });
+      const spacerPipeLength = (parseInt(levelPoleWidth) || 0) - 5;
+      items.push({ id: `BOLT-M16-${levelBoltSizing.spacerBoltSize}`, name: `Spacer Bolt (M16x${levelBoltSizing.spacerBoltSize}mm)`, qty: 1, category: 'Hardware' });
       items.push({ id: 'WASH-M16-50-SP', name: 'M16x50x50 Square Washer (Spacer)', qty: 4, category: 'Hardware' });
       items.push({ id: `PIPE-SPACER-${spacerPipeLength}`, name: `Spacer Pipe (${spacerPipeLength}mm)`, qty: 1, category: 'Hardware' });
     }
 
     return items;
-  }, [selections, isFinalized, boltSizingResult]);
+  
+    return items;
+  }, []);
+
+  // Current level's pick list
+  const currentPickList = useMemo(() => {
+    if (!boltSizingResult) return [];
+    return generatePickList(selections, poleWidth, boltSizingResult);
+  }, [selections, poleWidth, boltSizingResult, generatePickList]);
+
+  // Aggregated pick list from all levels
+  const aggregatedPickList = useMemo(() => {
+    if (!isFinalized) return [];
+    
+    const itemMap = new Map();
+    
+    levels.forEach(level => {
+      level.pickList.forEach(item => {
+        if (itemMap.has(item.id)) {
+          const existing = itemMap.get(item.id);
+          existing.qty += item.qty;
+        } else {
+          itemMap.set(item.id, { ...item });
+        }
+      });
+    });
+    
+    return Array.from(itemMap.values());
+  }, [levels, isFinalized]);
 
   const handleSelect = (option) => {
     setSelections(prev => ({ ...prev, [currentSection]: option }));
@@ -275,28 +347,46 @@ const App = () => {
     else if (activeStep > 0) setActiveStep(activeStep - 1);
   };
 
-  const handleFinalize = () => {
+  const handleLevelComplete = () => {
+    // Save current level
+    const newLevel = {
+      level: currentLevel,
+      selections: { ...selections },
+      poleWidth: parseInt(poleWidth),
+      code: generatedCode,
+      pickList: generatePickList(selections, poleWidth, boltSizingResult)
+    };
+    
+    setLevels(prev => [...prev, newLevel]);
     setShowPoleInput(false);
+    setShowLevelSummary(true);
+  };
+
+  const handleAddAnotherLevel = () => {
+    setCurrentLevel(prev => prev + 1);
+    setSelections({});
+    setActiveStep(0);
+    setPoleWidth(150);
+    setShowLevelSummary(false);
+  };
+
+  const handleFinalizeAll = () => {
+    setShowLevelSummary(false);
     setIsFinalized(true);
   };
 
   const reset = () => { 
+    setLevels([]);
+    setCurrentLevel(1);
     setSelections({}); 
     setActiveStep(0); 
     setIsFinalized(false); 
-    setShowPoleInput(false); 
+    setShowPoleInput(false);
+    setShowLevelSummary(false);
     setPoleWidth(150); 
   };
 
-  // Group pick list by category for display
-  const groupedPickList = useMemo(() => {
-    const groups = {};
-    pickList.forEach(item => {
-      if (!groups[item.category]) groups[item.category] = [];
-      groups[item.category].push(item);
-    });
-    return groups;
-  }, [pickList]);
+
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
@@ -310,7 +400,39 @@ const App = () => {
           </button>
         </header>
 
-        {showPoleInput ? (
+        {showLevelSummary ? (
+          <div className="space-y-6">
+            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden p-8">
+              <h2 className="text-2xl font-black text-slate-800 mb-6">Level {currentLevel} Saved</h2>
+              <div className="bg-slate-50 rounded-2xl p-6 mb-6">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Build Code</div>
+                <div className="text-lg font-mono font-black text-slate-800">{generatedCode}</div>
+              </div>
+              <div className="space-y-3">
+                <button onClick={handleAddAnotherLevel} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95">
+                  Add Level {currentLevel + 1} <ChevronRight />
+                </button>
+                <button onClick={handleFinalizeAll} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2 active:scale-95">
+                  Finalize Pick List ({levels.length} {levels.length === 1 ? 'Level' : 'Levels'})
+                </button>
+              </div>
+            </div>
+            
+            {levels.length > 0 && (
+              <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden p-6">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Configured Levels</h3>
+                <div className="space-y-3">
+                  {levels.map(level => (
+                    <div key={level.level} className="bg-slate-50 rounded-xl p-4">
+                      <div className="text-xs font-bold text-blue-600 mb-1">Level {level.level}</div>
+                      <div className="text-sm font-mono font-bold text-slate-700">{level.code}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : showPoleInput ? (
           <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
             <div className="p-8 border-b border-slate-50 flex items-center gap-4">
               <button onClick={goBack} className="p-2 hover:bg-slate-50 rounded-full transition-colors"><ArrowLeft size={24} /></button>
@@ -340,8 +462,8 @@ const App = () => {
                    <div className="text-sm font-bold text-slate-700">Long Brace: {boltSizingResult?.longBraceBoltSize}mm</div>
                 </div>
               </div>
-              <button onClick={handleFinalize} className="w-full py-6 bg-blue-600 text-white rounded-3xl font-black text-xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-3 active:scale-95">
-                GENERATE PICK LIST <ChevronRight />
+              <button onClick={handleLevelComplete} className="w-full py-6 bg-blue-600 text-white rounded-3xl font-black text-xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-3 active:scale-95">
+                SAVE LEVEL {currentLevel} <ChevronRight />
               </button>
             </div>
           </div>
@@ -351,6 +473,9 @@ const App = () => {
               <div className="flex items-center gap-4">
                 {activeStep > 0 && <button onClick={goBack} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400"><ArrowLeft size={24} /></button>}
                 <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full text-xs font-bold text-blue-600 uppercase mb-2">
+                    Level {currentLevel}
+                  </div>
                   <h2 className="text-2xl font-black text-slate-800 tracking-tight capitalize">{currentSection}</h2>
                   <p className="text-slate-400 text-xs font-bold tracking-widest uppercase mt-1">Step {activeStep + 1} of {SECTIONS.length}</p>
                 </div>
@@ -377,7 +502,8 @@ const App = () => {
             </div>
             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 className="font-black flex items-center gap-2 text-slate-800 uppercase text-sm tracking-tight"><ClipboardList size={18} className="text-blue-600" /> Component List</h3>
+                <h3 className="font-black flex items-center gap-2 text-slate-800 uppercase text-sm tracking-tight"><ClipboardList size={18} className="text-blue-600" /> Aggregated Pick List</h3>
+                <div className="text-xs text-slate-500 font-bold">{levels.length} {levels.length === 1 ? 'Level' : 'Levels'}</div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -385,11 +511,18 @@ const App = () => {
                     <tr className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
                       <th className="p-5">Reference</th>
                       <th className="p-5">Description</th>
-                      <th className="p-5 text-right">Qty</th>
+                      <th className="p-5 text-right">Total Qty</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(groupedPickList).map(([category, categoryItems]) => (
+                    {Object.entries((() => {
+                      const groups = {};
+                      aggregatedPickList.forEach(item => {
+                        if (!groups[item.category]) groups[item.category] = [];
+                        groups[item.category].push(item);
+                      });
+                      return groups;
+                    })()).map(([category, categoryItems]) => (
                       <React.Fragment key={category}>
                         <tr className="bg-slate-50/80">
                           <td colSpan={3} className="px-5 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">{category}</td>
