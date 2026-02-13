@@ -319,6 +319,48 @@ const App = () => {
   }, []);
 
   // Current level's pick list
+  const generatePolePickList = useCallback((selections) => {
+    if (!selections.Length || !selections.Number || !selections.Manufacturer || !selections.Material) {
+      return [];
+    }
+
+    const { Length: lengthCode, Number: num, Manufacturer: mfr, Material: mat } = selections;
+    const items = [];
+
+    // 1. The pole(s) itself
+    const poleQty = num === 'S' ? 1 : 2; // S=1, D=2, H=2
+    const lengthMeters = (parseInt(lengthCode) / 10).toFixed(1);
+    const poleName = `${lengthMeters}m ${POLE_MANUFACTURER_MAP[mfr]} ${POLE_MATERIAL_MAP[mat]} Pole`;
+    
+    items.push({
+      id: `POLE-${lengthCode}-${num}-${mfr}-${mat}`,
+      name: poleName,
+      qty: poleQty,
+      category: 'Pole'
+    });
+
+    // 2. Breast Blocks (by Number)
+    if (num === 'S') {
+      items.push({ id: 'BREAST-PLASTIC', name: 'Plastic Breast Block', qty: 2, category: 'Pole Hardware' });
+    } else if (num === 'D') {
+      items.push({ id: 'BREAST-CONCRETE', name: 'Concrete Breast Block', qty: 2, category: 'Pole Hardware' });
+    } else if (num === 'H') {
+      items.push({ id: 'BREAST-PLASTIC', name: 'Plastic Breast Block', qty: 4, category: 'Pole Hardware' });
+    }
+
+    // 3. Donuts (by Number + Manufacturer)
+    if (num === 'S' && mfr === 'B') {
+      items.push({ id: 'DONUT-PLASTIC-POLE', name: 'Plastic Pole Donut', qty: 1, category: 'Pole Hardware' });
+    } else if (num === 'D' && mfr === 'B') {
+      items.push({ id: 'DONUT-CONCRETE-DOUBLE', name: 'Concrete Double Donut', qty: 1, category: 'Pole Hardware' });
+    }
+
+    return items;
+  }, []);
+
+  const polePickList = useMemo(() => {
+    return generatePolePickList(poleSelections);
+  }, [poleSelections, generatePolePickList]);
   const currentPickList = useMemo(() => {
     if (!boltSizingResult) return [];
     return generatePickList(selections, poleWidth, boltSizingResult);
@@ -362,48 +404,6 @@ const App = () => {
   }, [aggregatedPickList]);
 
   // Generate pick list for pole configuration
-  const generatePolePickList = useCallback((selections) => {
-    if (!selections.Length || !selections.Number || !selections.Manufacturer || !selections.Material) {
-      return [];
-    }
-
-    const { Length: lengthCode, Number: num, Manufacturer: mfr, Material: mat } = selections;
-    const items = [];
-
-    // 1. The pole(s) itself
-    const poleQty = num === 'S' ? 1 : 2; // S=1, D=2, H=2
-    const lengthMeters = (parseInt(lengthCode) / 10).toFixed(1);
-    const poleName = `${lengthMeters}m ${POLE_MANUFACTURER_MAP[mfr]} ${POLE_MATERIAL_MAP[mat]} Pole`;
-    
-    items.push({
-      id: `POLE-${lengthCode}-${num}-${mfr}-${mat}`,
-      name: poleName,
-      qty: poleQty,
-      category: 'Pole'
-    });
-
-    // 2. Breast Blocks (by Number)
-    if (num === 'S') {
-      items.push({ id: 'BREAST-PLASTIC', name: 'Plastic Breast Block', qty: 2, category: 'Pole Hardware' });
-    } else if (num === 'D') {
-      items.push({ id: 'BREAST-CONCRETE', name: 'Concrete Breast Block', qty: 2, category: 'Pole Hardware' });
-    } else if (num === 'H') {
-      items.push({ id: 'BREAST-PLASTIC', name: 'Plastic Breast Block', qty: 4, category: 'Pole Hardware' });
-    }
-
-    // 3. Donuts (by Number + Manufacturer)
-    if (num === 'S' && mfr === 'B') {
-      items.push({ id: 'DONUT-PLASTIC-POLE', name: 'Plastic Pole Donut', qty: 1, category: 'Pole Hardware' });
-    } else if (num === 'D' && mfr === 'B') {
-      items.push({ id: 'DONUT-CONCRETE-DOUBLE', name: 'Concrete Double Donut', qty: 1, category: 'Pole Hardware' });
-    }
-
-    return items;
-  }, []);
-
-  const polePickList = useMemo(() => {
-    return generatePolePickList(poleSelections);
-  }, [poleSelections, generatePolePickList]);
 
   const handleSelect = (option) => {
     setSelections(prev => ({ ...prev, [currentSection]: option }));
