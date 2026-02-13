@@ -55,6 +55,8 @@ const SECTIONS = Object.keys(CONFIG_DATA);
  *   TFLYS    → terms:1  post:0          EDO:false delta:false
  */
 const parseConfig = (config, baseWireQty, armCount) => {
+  if (!config) return { termCount: 0, postQty: 0, hasEDO: false, hasDelta: false };
+  
   const termCount = (config.match(/T/g) || []).length;
   const postMatch = config.match(/\d+/);
   const postQty   = postMatch
@@ -118,7 +120,7 @@ const App = () => {
   }, [selections, poleWidth]);
 
   const generatePickList = useCallback((levelSelections, levelPoleWidth, levelBoltSizing) => {
-    if (!levelBoltSizing) return [];
+    if (!levelBoltSizing || !levelSelections.Configuration) return [];
     const { Voltage: voltage, Configuration: config, Material: material, Dimension: dimension, Length: lengthRaw, Number: num, Wires: wiresStr } = levelSelections;
     const armCount = parseInt(num) || 1;
     const isHV = ["11", "33", "66"].includes(voltage);
