@@ -488,6 +488,34 @@ const App = () => {
           </button>
         </header>
 
+        {/* Mode Toggle */}
+        {!isFinalized && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200 inline-flex gap-2">
+              <button
+                onClick={() => setConfigMode('pole')}
+                className={`px-6 py-3 rounded-xl font-black text-sm uppercase tracking-tight transition-all ${
+                  configMode === 'pole'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {poleConfigured ? '✓ ' : ''}Pole
+              </button>
+              <button
+                onClick={() => setConfigMode('crossarm')}
+                className={`px-6 py-3 rounded-xl font-black text-sm uppercase tracking-tight transition-all ${
+                  configMode === 'crossarm'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Crossarms ({levels.length})
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* POLE CONFIGURATION WIZARD */}
         {/* ═══════════════════════════════════════════════════════════════ */}
