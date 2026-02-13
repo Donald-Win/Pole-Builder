@@ -118,8 +118,8 @@ const App = () => {
   }, [selections, poleWidth]);
 
   const generatePickList = useCallback((levelSelections, levelPoleWidth, levelBoltSizing) => {
-    if (!isFinalized || !levelBoltSizing) return [];
-    const { Voltage: voltage, Configuration: config, Material: material, Dimension: dimension, Length: lengthRaw, Number: num, Wires: wiresStr } = selections;
+    if (!levelBoltSizing) return [];
+    const { Voltage: voltage, Configuration: config, Material: material, Dimension: dimension, Length: lengthRaw, Number: num, Wires: wiresStr } = levelSelections;
     const armCount = parseInt(num) || 1;
     const isHV = ["11", "33", "66"].includes(voltage);
     const isLVTX = voltage === 'LVTX';
@@ -295,6 +295,15 @@ const App = () => {
     
     return Array.from(itemMap.values());
   }, [levels, isFinalized]);
+
+  const groupedAggregatedPickList = useMemo(() => {
+    const groups = {};
+    aggregatedPickList.forEach(item => {
+      if (!groups[item.category]) groups[item.category] = [];
+      groups[item.category].push(item);
+    });
+    return groups;
+  }, [aggregatedPickList]);
 
   const handleSelect = (option) => {
     setSelections(prev => ({ ...prev, [currentSection]: option }));
@@ -475,14 +484,13 @@ const App = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries((() => {
-                      const groups = {};
-                      aggregatedPickList.forEach(item => {
-                        if (!groups[item.category]) groups[item.category] = [];
-                        groups[item.category].push(item);
-                      });
-                      return groups;
-                    })()).map(([category, categoryItems]) => (
+                    {aggregatedPickList.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-slate-400 text-sm">
+                          No items in pick list
+                        </td>
+                      </tr>
+                    ) : Object.entries(groupedAggregatedPickList).map(([category, categoryItems]) => (
                       <React.Fragment key={category}>
                         <tr className="bg-slate-50/80">
                           <td colSpan={3} className="px-5 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">{category}</td>
