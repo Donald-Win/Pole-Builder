@@ -25,6 +25,46 @@ const CONFIG_DATA = {
 
 const BOLT_SIZES = [100, 110, 130, 140, 150, 160, 180, 200, 220, 240, 260, 280, 300, 325, 350, 375, 400, 425, 450, 475, 500, 525, 550, 575, 600];
 
+// ════════════════════════════════════════════════════════════════════════════
+// POLE CONFIGURATION DATA
+// ════════════════════════════════════════════════════════════════════════════
+
+const POLE_SECTIONS = ['Length', 'Number', 'Manufacturer', 'Material'];
+
+const POLE_CONFIG_DATA = {
+  Length: ['75', '90', '95', '100', '105', '110', '115', '120', '124', '125', '136', '148', '155', '185'],
+  Number: ['S', 'D', 'H'],
+  Manufacturer: ['B', 'D', 'H', 'G', 'I', 'GP', 'HW'],
+  Material: ['C', 'F', 'G', 'H', 'P', 'PH', 'S', 'SL']
+};
+
+const POLE_NUMBER_MAP = {
+  S: 'Single',
+  D: 'Double',
+  H: 'H-Structure'
+};
+
+const POLE_MANUFACTURER_MAP = {
+  B: 'Busck',
+  D: 'Dulhunty',
+  H: 'Hume',
+  G: 'Industrial Galvanisers',
+  I: 'International Utility Poles',
+  GP: 'Goldpine Electropoles',
+  HW: 'Hardwood Poles'
+};
+
+const POLE_MATERIAL_MAP = {
+  C: 'Reinforced Concrete',
+  F: 'Glass Fibre Reinforced Concrete',
+  G: 'Galvanised Steel',
+  H: 'Hardwood',
+  P: 'Prestressed Concrete',
+  PH: 'Prestressed Heavy Concrete',
+  S: 'Softwood (12kN)',
+  SL: 'Softwood Light (9kN)'
+};
+
 const DIMENSION_MAP = {
   "A": "75x100mm", "B": "100x100mm", "D": "100x150mm", "E": "125x150mm", "Z": "75x75mm Angle Iron"
 };
@@ -78,6 +118,12 @@ const App = () => {
   const [showPoleInput, setShowPoleInput] = useState(false);
   const [showLevelSummary, setShowLevelSummary] = useState(false);
   const [isFinalized, setIsFinalized] = useState(false);
+
+  // Pole configuration state
+  const [configMode, setConfigMode] = useState('crossarm'); // 'pole' or 'crossarm'
+  const [poleSelections, setPoleSelections] = useState({});
+  const [poleActiveStep, setPoleActiveStep] = useState(0);
+  const [poleConfigured, setPoleConfigured] = useState(false);
 
   const currentSection = SECTIONS[activeStep];
   const options = CONFIG_DATA[currentSection] || [];
@@ -284,6 +330,14 @@ const App = () => {
     
     const itemMap = new Map();
     
+    // Add pole items if configured
+    if (poleConfigured) {
+      polePickList.forEach(item => {
+        itemMap.set(item.id, { ...item });
+      });
+    }
+    
+    // Add crossarm items from all levels
     levels.forEach(level => {
       level.pickList.forEach(item => {
         if (itemMap.has(item.id)) {
@@ -296,7 +350,7 @@ const App = () => {
     });
     
     return Array.from(itemMap.values());
-  }, [levels, isFinalized]);
+  }, [levels, isFinalized, poleConfigured, polePickList]);
 
   const groupedAggregatedPickList = useMemo(() => {
     const groups = {};
@@ -306,6 +360,50 @@ const App = () => {
     });
     return groups;
   }, [aggregatedPickList]);
+
+  // Generate pick list for pole configuration
+  const generatePolePickList = useCallback((selections) => {
+    if (!selections.Length || !selections.Number || !selections.Manufacturer || !selections.Material) {
+      return [];
+    }
+
+    const { Length: lengthCode, Number: num, Manufacturer: mfr, Material: mat } = selections;
+    const items = [];
+
+    // 1. The pole(s) itself
+    const poleQty = num === 'S' ? 1 : 2; // S=1, D=2, H=2
+    const lengthMeters = (parseInt(lengthCode) / 10).toFixed(1);
+    const poleName = `${lengthMeters}m ${POLE_MANUFACTURER_MAP[mfr]} ${POLE_MATERIAL_MAP[mat]} Pole`;
+    
+    items.push({
+      id: `POLE-${lengthCode}-${num}-${mfr}-${mat}`,
+      name: poleName,
+      qty: poleQty,
+      category: 'Pole'
+    });
+
+    // 2. Breast Blocks (by Number)
+    if (num === 'S') {
+      items.push({ id: 'BREAST-PLASTIC', name: 'Plastic Breast Block', qty: 2, category: 'Pole Hardware' });
+    } else if (num === 'D') {
+      items.push({ id: 'BREAST-CONCRETE', name: 'Concrete Breast Block', qty: 2, category: 'Pole Hardware' });
+    } else if (num === 'H') {
+      items.push({ id: 'BREAST-PLASTIC', name: 'Plastic Breast Block', qty: 4, category: 'Pole Hardware' });
+    }
+
+    // 3. Donuts (by Number + Manufacturer)
+    if (num === 'S' && mfr === 'B') {
+      items.push({ id: 'DONUT-PLASTIC-POLE', name: 'Plastic Pole Donut', qty: 1, category: 'Pole Hardware' });
+    } else if (num === 'D' && mfr === 'B') {
+      items.push({ id: 'DONUT-CONCRETE-DOUBLE', name: 'Concrete Double Donut', qty: 1, category: 'Pole Hardware' });
+    }
+
+    return items;
+  }, []);
+
+  const polePickList = useMemo(() => {
+    return generatePolePickList(poleSelections);
+  }, [poleSelections, generatePolePickList]);
 
   const handleSelect = (option) => {
     setSelections(prev => ({ ...prev, [currentSection]: option }));
@@ -346,7 +444,22 @@ const App = () => {
     setIsFinalized(true);
   };
 
-  const reset = () => { 
+  // Pole configuration handlers
+  const handlePoleSelect = (option) => {
+    setPoleSelections(prev => ({ ...prev, [POLE_SECTIONS[poleActiveStep]]: option }));
+    if (poleActiveStep < POLE_SECTIONS.length - 1) {
+      setPoleActiveStep(poleActiveStep + 1);
+    } else {
+      setPoleConfigured(true);
+      setConfigMode('crossarm');
+    }
+  };
+
+  const goBackPole = () => {
+    if (poleActiveStep > 0) setPoleActiveStep(poleActiveStep - 1);
+  };
+
+    const reset = () => { 
     setLevels([]);
     setCurrentLevel(1);
     setSelections({}); 
@@ -354,7 +467,11 @@ const App = () => {
     setIsFinalized(false); 
     setShowPoleInput(false);
     setShowLevelSummary(false);
-    setPoleWidth(150); 
+    setPoleWidth(150);
+    setPoleSelections({});
+    setPoleActiveStep(0);
+    setPoleConfigured(false);
+    setConfigMode('crossarm');
   };
 
 
@@ -371,7 +488,80 @@ const App = () => {
           </button>
         </header>
 
-        {showLevelSummary ? (
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* POLE CONFIGURATION WIZARD */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {configMode === 'pole' && !poleConfigured ? (
+          <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+            <div className="p-8 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {poleActiveStep > 0 && (
+                  <button onClick={goBackPole} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400">
+                    <ArrowLeft size={24} />
+                  </button>
+                )}
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full text-xs font-bold text-white uppercase mb-2">
+                    Pole Configuration
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight capitalize">
+                    {POLE_SECTIONS[poleActiveStep]}
+                  </h2>
+                  <p className="text-slate-400 text-xs font-bold tracking-widest uppercase mt-1">
+                    Step {poleActiveStep + 1} of {POLE_SECTIONS.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {POLE_CONFIG_DATA[POLE_SECTIONS[poleActiveStep]].map(option => (
+                  <button
+                    key={option}
+                    onClick={() => handlePoleSelect(option)}
+                    className="group relative p-6 bg-slate-50 hover:bg-blue-50 border-2 border-slate-50 hover:border-blue-500 rounded-2xl transition-all active:scale-95"
+                  >
+                    <div className="text-2xl font-black text-slate-800 group-hover:text-blue-600 transition-colors mb-1">
+                      {option}
+                    </div>
+                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                      {POLE_SECTIONS[poleActiveStep] === 'Number' && POLE_NUMBER_MAP[option]}
+                      {POLE_SECTIONS[poleActiveStep] === 'Manufacturer' && POLE_MANUFACTURER_MAP[option]}
+                      {POLE_SECTIONS[poleActiveStep] === 'Material' && POLE_MATERIAL_MAP[option]}
+                      {POLE_SECTIONS[poleActiveStep] === 'Length' && `${(parseInt(option)/10).toFixed(1)}m`}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {Object.keys(poleSelections).length > 0 && (
+                <div className="mt-6 p-4 bg-slate-900 rounded-2xl">
+                  <div className="text-xs text-blue-400 font-black uppercase tracking-widest mb-2">Building</div>
+                  <div className="text-lg font-mono font-black text-white">
+                    POLE-{POLE_SECTIONS.map(s => poleSelections[s] || '—').join('-')}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : configMode === 'pole' && poleConfigured ? (
+          <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden p-8">
+            <h2 className="text-2xl font-black text-slate-800 mb-6">Pole Configured</h2>
+            <div className="bg-slate-900 rounded-2xl p-6 text-white mb-6">
+              <div className="text-blue-400 text-xs font-black uppercase tracking-widest mb-2">Pole Code</div>
+              <div className="text-xl font-mono font-black">
+                POLE-{POLE_SECTIONS.map(s => poleSelections[s]).join('-')}
+              </div>
+            </div>
+            <button
+              onClick={() => { setPoleConfigured(false); setPoleActiveStep(0); }}
+              className="w-full py-4 bg-slate-200 text-slate-700 rounded-2xl font-black text-lg hover:bg-slate-300 transition-all"
+            >
+              Reconfigure Pole
+            </button>
+          </div>
+        ) : configMode === 'crossarm' && (showLevelSummary ? (
           <div className="space-y-6">
             <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden p-8">
               <h2 className="text-2xl font-black text-slate-800 mb-6">Level {currentLevel} Saved</h2>
@@ -511,7 +701,7 @@ const App = () => {
               </div>
             </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
