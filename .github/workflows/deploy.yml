@@ -1,4 +1,5 @@
 name: Deploy to GitHub Pages
+run-name: Deploying - ${{ github.event.head_commit.message }}
 
 on:
   push:
@@ -33,3 +34,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           cname: false
+          # This line restores your commit messages in the deployment logs:
+          commit_message: ${{ github.event.head_commit.message }}
+
