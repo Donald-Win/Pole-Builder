@@ -89,6 +89,7 @@ const App = () => {
   const [showPoleInput, setShowPoleInput] = useState(false);
   const [showItemSummary, setShowItemSummary] = useState(false);
   const [isFinalized, setIsFinalized] = useState(false);
+  const [justSavedCode, setJustSavedCode] = useState('');
 
   // Current configuration context
   const sections = selectedClass === 'XARM' ? SECTIONS : POLE_SECTIONS;
@@ -387,15 +388,17 @@ const App = () => {
     const selectionsToUse = finalSelections || selections;
     
     if (selectedClass === 'XARM') {
+      const xarmCode = `XARM-${SECTIONS.map(s => selectionsToUse[s] || '—').join('-')}`;
       const newLevel = {
         level: currentLevel,
         selections: { ...selectionsToUse },
         poleWidth: parseInt(poleWidth),
-        code: `XARM-${SECTIONS.map(s => selectionsToUse[s] || '—').join('-')}`,
+        code: xarmCode,
         pickList: generatePickList(selectionsToUse, poleWidth, boltSizingResult)
       };
       setLevels(prev => [...prev, newLevel]);
       setCurrentLevel(prev => prev + 1);
+      setJustSavedCode(xarmCode);
     } else if (selectedClass === 'POLE') {
       const poleCode = `POLE-${POLE_SECTIONS.map(s => selectionsToUse[s]).join('-')}`;
       const newPole = {
@@ -406,6 +409,7 @@ const App = () => {
       };
       setPoles(prev => [...prev, newPole]);
       setCurrentPole(prev => prev + 1);
+      setJustSavedCode(poleCode);
     }
     
     setSelections({});
@@ -437,6 +441,7 @@ const App = () => {
     setShowItemSummary(false);
     setIsFinalized(false);
     setPoleWidth(150);
+    setJustSavedCode('');
   };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -492,11 +497,7 @@ const App = () => {
               </h2>
               <div className="bg-slate-900 rounded-2xl p-6 mb-6 text-white">
                 <div className="text-blue-400 text-xs font-black uppercase tracking-widest mb-2">Build Code</div>
-                <div className="text-xl font-mono font-black">
-                  {selectedClass === 'POLE' 
-                    ? poles[poles.length - 1]?.code 
-                    : levels[levels.length - 1]?.code}
-                </div>
+                <div className="text-xl font-mono font-black">{justSavedCode}</div>
               </div>
               <div className="space-y-3">
                 <button onClick={handleAddAnother} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95">
