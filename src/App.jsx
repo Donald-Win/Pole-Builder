@@ -362,18 +362,16 @@ const App = () => {
   };
 
   const handleSelect = (option) => {
-    const updatedSelections = { ...selections, [currentSection]: option };
-    setSelections(updatedSelections);
+    setSelections(prev => ({ ...prev, [currentSection]: option }));
     
     if (activeStep < sections.length - 1) {
       setActiveStep(activeStep + 1);
     } else if (selectedClass === 'XARM') {
-      // Save completed wizard selections before showing pole input screen
       setCompletedWizardSelections(updatedSelections);
       setShowPoleInput(true);
     } else {
-      // POLE: complete immediately with updated selections
-      handleItemComplete(updatedSelections);
+      // POLE: complete immediately
+      handleItemComplete();
     }
   };
 
@@ -387,52 +385,29 @@ const App = () => {
     }
   };
 
-  const handleItemComplete = (finalSelections = null) => {
-    // For XARM: use completedWizardSelections (set when entering pole width screen)
-    // For POLE: use finalSelections (passed directly from handleSelect)
-    const selectionsToUse = finalSelections || (selectedClass === 'XARM' ? completedWizardSelections : selections);
-    
-      selectedClass,
-      finalSelections: finalSelections ? Object.keys(finalSelections).length + ' keys' : 'null',
-      completedWizardSelections: Object.keys(completedWizardSelections).length + ' keys',
-      selections: Object.keys(selections).length + ' keys',
-      selectionsToUse: JSON.parse(JSON.stringify(selectionsToUse)),
-      poleWidth
-    });
-    
+  const handleItemComplete = () => {
     if (selectedClass === 'XARM') {
-      console.log('🔍 Building XARM code from:', selectionsToUse);
-      const xarmCode = `XARM-${SECTIONS.map(s => selectionsToUse[s] || '—').join('-')}`;
-      console.log('✅ Built code:', xarmCode);
-        xarmCode,
-        SECTIONS,
-        mappedValues: SECTIONS.map(s => selectionsToUse[s] || '—')
-      });
       const newLevel = {
         level: currentLevel,
-        selections: { ...selectionsToUse },
+        selections: { ...selections },
         poleWidth: parseInt(poleWidth),
-        code: xarmCode,
-        pickList: generatePickList(selectionsToUse, poleWidth, boltSizingResult)
+        code: generatedCode,
+        pickList: generatePickList(selections, poleWidth, boltSizingResult)
       };
       setLevels(prev => [...prev, newLevel]);
       setCurrentLevel(prev => prev + 1);
-      setJustSavedCode(xarmCode);
     } else if (selectedClass === 'POLE') {
-      const poleCode = `POLE-${POLE_SECTIONS.map(s => selectionsToUse[s]).join('-')}`;
       const newPole = {
         pole: currentPole,
-        selections: { ...selectionsToUse },
-        code: poleCode,
-        pickList: generatePolePickList(selectionsToUse)
+        selections: { ...selections },
+        code: generatedCode,
+        pickList: generatePolePickList(selections)
       };
       setPoles(prev => [...prev, newPole]);
       setCurrentPole(prev => prev + 1);
-      setJustSavedCode(poleCode);
     }
     
     setSelections({});
-    setCompletedWizardSelections({});
     setActiveStep(0);
     setShowPoleInput(false);
     setShowItemSummary(true);
@@ -518,7 +493,7 @@ const App = () => {
               </h2>
               <div className="bg-slate-900 rounded-2xl p-6 mb-6 text-white">
                 <div className="text-blue-400 text-xs font-black uppercase tracking-widest mb-2">Build Code</div>
-                <div className="text-xl font-mono font-black">{justSavedCode}</div>
+                <div className="text-xl font-mono font-black">{generatedCode}</div>
               </div>
               <div className="space-y-3">
                 <button onClick={handleAddAnother} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95">
