@@ -376,7 +376,7 @@ const App = () => {
       setActiveStep(activeStep + 1);
     } else if (selectedClass === 'XARM') {
       // Save completed wizard selections before showing pole input screen
-      console.log('🟢 Saving completedWizardSelections:', updatedSelections);
+      console.log('🟢 Saving completedWizardSelections:', JSON.parse(JSON.stringify(updatedSelections)));
       setCompletedWizardSelections(updatedSelections);
       setShowPoleInput(true);
     } else {
@@ -403,10 +403,10 @@ const App = () => {
     
     console.log('🔴 handleItemComplete:', {
       selectedClass,
-      finalSelections,
-      completedWizardSelections,
-      selections,
-      selectionsToUse,
+      finalSelections: finalSelections ? Object.keys(finalSelections).length + ' keys' : 'null',
+      completedWizardSelections: Object.keys(completedWizardSelections).length + ' keys',
+      selections: Object.keys(selections).length + ' keys',
+      selectionsToUse: JSON.parse(JSON.stringify(selectionsToUse)),
       poleWidth
     });
     
