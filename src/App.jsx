@@ -363,25 +363,16 @@ const App = () => {
 
   const handleSelect = (option) => {
     const updatedSelections = { ...selections, [currentSection]: option };
-    console.log('🔵 handleSelect:', { 
-      currentSection, 
-      option, 
-      updatedSelections,
-      selectedClass,
-      isLastStep: activeStep >= sections.length - 1
-    });
     setSelections(updatedSelections);
     
     if (activeStep < sections.length - 1) {
       setActiveStep(activeStep + 1);
     } else if (selectedClass === 'XARM') {
       // Save completed wizard selections before showing pole input screen
-      console.log('🟢 Saving completedWizardSelections:', JSON.parse(JSON.stringify(updatedSelections)));
       setCompletedWizardSelections(updatedSelections);
       setShowPoleInput(true);
     } else {
       // POLE: complete immediately with updated selections
-      console.log('🟡 POLE completing with:', updatedSelections);
       handleItemComplete(updatedSelections);
     }
   };
@@ -401,7 +392,6 @@ const App = () => {
     // For POLE: use finalSelections (passed directly from handleSelect)
     const selectionsToUse = finalSelections || (selectedClass === 'XARM' ? completedWizardSelections : selections);
     
-    console.log('🔴 handleItemComplete:', {
       selectedClass,
       finalSelections: finalSelections ? Object.keys(finalSelections).length + ' keys' : 'null',
       completedWizardSelections: Object.keys(completedWizardSelections).length + ' keys',
@@ -411,8 +401,9 @@ const App = () => {
     });
     
     if (selectedClass === 'XARM') {
+      console.log('🔍 Building XARM code from:', selectionsToUse);
       const xarmCode = `XARM-${SECTIONS.map(s => selectionsToUse[s] || '—').join('-')}`;
-      console.log('🟣 Generated XARM code:', {
+      console.log('✅ Built code:', xarmCode);
         xarmCode,
         SECTIONS,
         mappedValues: SECTIONS.map(s => selectionsToUse[s] || '—')
