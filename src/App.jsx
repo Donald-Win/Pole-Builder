@@ -84,6 +84,7 @@ const App = () => {
   const [selections, setSelections] = useState({});
   const [activeStep, setActiveStep] = useState(0);
   const [poleWidth, setPoleWidth] = useState(150);
+  const [completedWizardSelections, setCompletedWizardSelections] = useState({});
   
   // UI state
   const [showPoleInput, setShowPoleInput] = useState(false);
@@ -367,6 +368,8 @@ const App = () => {
     if (activeStep < sections.length - 1) {
       setActiveStep(activeStep + 1);
     } else if (selectedClass === 'XARM') {
+      // Save completed wizard selections before showing pole input screen
+      setCompletedWizardSelections(updatedSelections);
       setShowPoleInput(true);
     } else {
       // POLE: complete immediately with updated selections
@@ -385,7 +388,9 @@ const App = () => {
   };
 
   const handleItemComplete = (finalSelections = null) => {
-    const selectionsToUse = finalSelections || selections;
+    // For XARM: use completedWizardSelections (set when entering pole width screen)
+    // For POLE: use finalSelections (passed directly from handleSelect)
+    const selectionsToUse = finalSelections || (selectedClass === 'XARM' ? completedWizardSelections : selections);
     
     if (selectedClass === 'XARM') {
       const xarmCode = `XARM-${SECTIONS.map(s => selectionsToUse[s] || '—').join('-')}`;
@@ -413,6 +418,7 @@ const App = () => {
     }
     
     setSelections({});
+    setCompletedWizardSelections({});
     setActiveStep(0);
     setShowPoleInput(false);
     setShowItemSummary(true);
@@ -436,6 +442,7 @@ const App = () => {
     setCurrentPole(1);
     setCurrentLevel(1);
     setSelections({});
+    setCompletedWizardSelections({});
     setActiveStep(0);
     setShowPoleInput(false);
     setShowItemSummary(false);
