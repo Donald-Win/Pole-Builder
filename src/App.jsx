@@ -276,12 +276,15 @@ const App = () => {
       items.push({ id: `PIPE-SPACER-${spacerPipeLength}`, name: `Spacer Pipe (${spacerPipeLength}mm)`, qty: 1, category: 'Hardware' });
     }
 
+    console.log('✅ Generated pole items:', items);
     return items;
   }, []);
 
   // Generate POLE pick list
   const generatePolePickList = useCallback((poleSelections) => {
+    console.log('🔧 generatePolePickList called with:', poleSelections);
     if (!poleSelections.Length || !poleSelections.Number || !poleSelections.Manufacturer || !poleSelections.Material) {
+      console.log('❌ Missing required pole selections, returning empty array');
       return [];
     }
 
@@ -311,6 +314,7 @@ const App = () => {
       items.push({ id: 'DONUT-CONCRETE-DOUBLE', name: 'Concrete Double Donut', qty: 1, category: 'Pole Hardware' });
     }
 
+    console.log('✅ Generated pole items:', items);
     return items;
   }, []);
 
@@ -386,29 +390,37 @@ const App = () => {
     }
   };
 
-  const handleItemComplete = () => {
+  const handleItemComplete = (finalSelections = null) => {
+    const selectionsToUse = finalSelections || (selectedClass === 'XARM' ? completedWizardSelections : selections);
+    
     if (selectedClass === 'XARM') {
+      const xarmCode = `XARM-${SECTIONS.map(s => selectionsToUse[s] || '—').join('-')}`;
+      setJustSavedCode(xarmCode);
       const newLevel = {
         level: currentLevel,
-        selections: { ...selections },
+        selections: { ...selectionsToUse },
         poleWidth: parseInt(poleWidth),
-        code: generatedCode,
-        pickList: generatePickList(selections, poleWidth, boltSizingResult)
+        code: xarmCode,
+        pickList: generatePickList(selectionsToUse, poleWidth, boltSizingResult)
       };
       setLevels(prev => [...prev, newLevel]);
       setCurrentLevel(prev => prev + 1);
     } else if (selectedClass === 'POLE') {
+      const poleCode = `POLE-${POLE_SECTIONS.map(s => selectionsToUse[s]).join('-')}`;
+      setJustSavedCode(poleCode);
       const newPole = {
         pole: currentPole,
-        selections: { ...selections },
-        code: generatedCode,
-        pickList: generatePolePickList(selections)
+        selections: { ...selectionsToUse },
+        code: poleCode,
+        pickList: generatePolePickList(selectionsToUse)
       };
+      console.log('💾 Saving pole:', newPole);
       setPoles(prev => [...prev, newPole]);
       setCurrentPole(prev => prev + 1);
     }
     
     setSelections({});
+    setCompletedWizardSelections({});
     setActiveStep(0);
     setShowPoleInput(false);
     setShowItemSummary(true);
@@ -494,7 +506,7 @@ const App = () => {
               </h2>
               <div className="bg-slate-900 rounded-2xl p-6 mb-6 text-white">
                 <div className="text-blue-400 text-xs font-black uppercase tracking-widest mb-2">Build Code</div>
-                <div className="text-xl font-mono font-black">{generatedCode}</div>
+                <div className="text-xl font-mono font-black">{justSavedCode}</div>
               </div>
               <div className="space-y-3">
                 <button onClick={handleAddAnother} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95">
