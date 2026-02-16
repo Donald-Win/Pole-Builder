@@ -362,7 +362,8 @@ const App = () => {
   };
 
   const handleSelect = (option) => {
-    setSelections(prev => ({ ...prev, [currentSection]: option }));
+    const updatedSelections = { ...selections, [currentSection]: option };
+    setSelections(updatedSelections);
     
     if (activeStep < sections.length - 1) {
       setActiveStep(activeStep + 1);
@@ -370,8 +371,8 @@ const App = () => {
       setCompletedWizardSelections(updatedSelections);
       setShowPoleInput(true);
     } else {
-      // POLE: complete immediately
-      handleItemComplete();
+      // POLE: complete immediately with updated selections
+      handleItemComplete(updatedSelections);
     }
   };
 
