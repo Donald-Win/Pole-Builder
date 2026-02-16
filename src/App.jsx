@@ -276,15 +276,12 @@ const App = () => {
       items.push({ id: `PIPE-SPACER-${spacerPipeLength}`, name: `Spacer Pipe (${spacerPipeLength}mm)`, qty: 1, category: 'Hardware' });
     }
 
-    console.log('✅ Generated pole items:', items);
     return items;
   }, []);
 
   // Generate POLE pick list
   const generatePolePickList = useCallback((poleSelections) => {
-    console.log('🔧 generatePolePickList called with:', poleSelections);
     if (!poleSelections.Length || !poleSelections.Number || !poleSelections.Manufacturer || !poleSelections.Material) {
-      console.log('❌ Missing required pole selections, returning empty array');
       return [];
     }
 
@@ -314,7 +311,6 @@ const App = () => {
       items.push({ id: 'DONUT-CONCRETE-DOUBLE', name: 'Concrete Double Donut', qty: 1, category: 'Pole Hardware' });
     }
 
-    console.log('✅ Generated pole items:', items);
     return items;
   }, []);
 
@@ -414,7 +410,6 @@ const App = () => {
         code: poleCode,
         pickList: generatePolePickList(selectionsToUse)
       };
-      console.log('💾 Saving pole:', newPole);
       setPoles(prev => [...prev, newPole]);
       setCurrentPole(prev => prev + 1);
     }
