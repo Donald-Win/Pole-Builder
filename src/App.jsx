@@ -87,8 +87,18 @@ function calcBoltSizing(sel, poleWidth) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// XARM PICK LIST GENERATOR
+// PICK LIST HELPERS
 // ════════════════════════════════════════════════════════════════════════════
+
+// Normalized item helpers - same size = same ID so aggregation works correctly
+const m16bolt = (size, qty) => ({ id: `M16-${size}`, name: `M16 x ${size}mm Bolt`, qty, category: 'M16 Bolts' });
+const m12bolt = (size, qty) => ({ id: `M12-${size}`, name: `M12 x ${size}mm Bolt`, qty, category: 'M12 Bolts' });
+const m16washer = (qty) => ({ id: 'WASH-M16-50x50', name: 'M16 x 50x50 Square Washer', qty, category: 'Washers' });
+const m12washer = (qty) => ({ id: 'WASH-M12-50x50', name: 'M12 x 50x50 Square Washer', qty, category: 'Washers' });
+const m20washer = (qty) => ({ id: 'WASH-M20-80x80', name: 'M20 x 80x80 Large Washer', qty, category: 'Washers' });
+const conical   = (qty) => ({ id: 'WASH-CONICAL', name: 'Conical Washer', qty, category: 'Washers' });
+const m16nut    = (qty) => ({ id: 'NUT-M16', name: 'M16 Nut', qty, category: 'Nuts' });
+const m12nut    = (qty) => ({ id: 'NUT-M12', name: 'M12 Nut', qty, category: 'Nuts' });
 
 function generateXarmPickList(sel, poleWidth, boltSizing) {
   if (!boltSizing || !sel.Configuration) return [];
@@ -103,20 +113,20 @@ function generateXarmPickList(sel, poleWidth, boltSizing) {
   const pw = parseInt(poleWidth) || 0;
 
   const items = [{
-    id: `${material}${isHV ? 'HV' : 'LV'}-${config}-${dimension}-${lengthRaw}`,
+    id: `ARM-${material}${isHV ? 'HV' : 'LV'}-${config}-${dimension}-${lengthRaw}`,
     name: `${material === 'T' ? '' : MATERIAL_MAP[material] + ' '}${isHV ? 'HV' : 'LV'} ${armCount === 2 ? 'Double' : 'Single'} ${config === "EDO" ? 'DDO Arm' : (boltSizing.isPinArm ? 'Pin Arm' : 'Crossarm')} - ${DIMENSION_MAP[dimension]} x ${(parseInt(lengthRaw) / 10).toFixed(1)}m`,
     qty: armCount,
-    category: 'Main Arm'
+    category: 'Arms'
   }];
 
-  // King bolt kit
+  // King bolt assembly
   if (config !== 'TFLYW' && config !== 'TFLYS') {
-    items.push({ id: `BOLT-M16-${boltSizing.kingBoltSize}`, name: `King Bolt (M16x${boltSizing.kingBoltSize}mm)`, qty: 1, category: 'Hardware' });
-    items.push({ id: 'WASH-M16-50-KB', name: 'M16x50x50 Square Washer', qty: 2, category: 'Hardware' });
-    items.push({ id: 'NUT-M16-KB', name: 'M16 Nut', qty: 1, category: 'Hardware' });
+    items.push(m16bolt(boltSizing.kingBoltSize, 1));
+    items.push(m16washer(2));
+    items.push(m16nut(1));
     if (material === 'T') {
-      items.push({ id: 'WASH-M20-80', name: 'M20x80x80 Large Washer', qty: 1, category: 'Hardware' });
-      items.push({ id: 'WASH-CONICAL', name: 'Conical Washer', qty: 1, category: 'Hardware' });
+      items.push(m20washer(1));
+      items.push(conical(1));
     }
   }
 
@@ -133,12 +143,12 @@ function generateXarmPickList(sel, poleWidth, boltSizing) {
       items.push({ id: 'INS-LV-PIN', name: 'LV Pin Insulator', qty: baseWireQty * armCount, category: 'Insulators' });
     } else if (config === "T" || config === "TT" || config.startsWith("TPS") || config === "TFLYW" || config === "TFLYS") {
       const termQty = baseWireQty * (config === "TT" ? 2 : 1);
-      const armBolt = dimension === "A" ? "110mm" : "130mm";
+      const armBoltSize = dimension === "A" ? 110 : 130;
       items.push({ id: 'INS-LV-BOB', name: 'LV Bobbin', qty: termQty, category: 'Insulators' });
-      items.push({ id: 'STRAP-SH-7', name: '7" Shackle Strap', qty: termQty * 2, category: 'Hardware' });
-      items.push({ id: 'BOLT-M12-110-TS', name: 'M12x110mm Bolt (Term Set)', qty: termQty, category: 'Hardware' });
-      items.push({ id: `BOLT-M12-${armBolt}-ARM`, name: `M12x${armBolt} Bolt (Arm Side)`, qty: termQty, category: 'Hardware' });
-      items.push({ id: 'NUT-M12-TS', name: 'M12 Nut (Term Set)', qty: termQty * 2, category: 'Hardware' });
+      items.push({ id: 'STRAP-SH-7', name: '7" Shackle Strap', qty: termQty * 2, category: 'Fittings' });
+      items.push(m12bolt(110, termQty));
+      items.push(m12bolt(armBoltSize, termQty));
+      items.push(m12nut(termQty * 2));
     }
   }
 
@@ -147,74 +157,74 @@ function generateXarmPickList(sel, poleWidth, boltSizing) {
     const termCount = (config.match(/T/g) || []).length;
     const postMatch = config.match(/\d+/);
     const postQty = postMatch ? parseInt(postMatch[0]) : (config.includes('PS') ? baseWireQty * armCount : 0);
-    const hasEDO = config.includes('EDO');
+    const hasEDO2 = config.includes('EDO');
     const hasDelta = config.startsWith('D');
     const vLabel = `${voltage}kV`;
 
-    if (hasEDO) items.push({ id: `EDO-${voltage}KV`, name: `${vLabel} Expulsion Drop Out (EDO) Cutout`, qty: baseWireQty, category: 'Insulators' });
+    if (hasEDO2) items.push({ id: `EDO-${voltage}KV`, name: `${vLabel} Expulsion Drop Out (EDO) Cutout`, qty: baseWireQty, category: 'Insulators' });
     if (postQty > 0) items.push({ id: `INS-POST-${voltage}KV`, name: `${vLabel} Post Insulator`, qty: postQty, category: 'Insulators' });
     if (termCount > 0) {
       const termQty = baseWireQty * termCount;
-      items.push({ id: 'EYEBOLT-M16-250', name: 'M16x250mm Eye Bolt', qty: termQty, category: 'Hardware' });
+      items.push(m16bolt(250, termQty));
       items.push({ id: `INS-TERM-${voltage}KV`, name: `${vLabel} Polymeric Term Insulator`, qty: termQty, category: 'Insulators' });
-      items.push({ id: 'CLIP-RFI', name: 'R.F.I. Clip', qty: termQty, category: 'Hardware' });
-      items.push({ id: 'CLEVIS', name: 'Clevis', qty: termQty, category: 'Hardware' });
+      items.push({ id: 'CLIP-RFI', name: 'R.F.I. Clip', qty: termQty, category: 'Fittings' });
+      items.push({ id: 'CLEVIS', name: 'Clevis', qty: termQty, category: 'Fittings' });
     }
-    if (hasDelta) items.push({ id: 'BRACKET-DELTA', name: 'Delta Bracket', qty: 1, category: 'Hardware' });
+    if (hasDelta) items.push({ id: 'BRACKET-DELTA', name: 'Delta Bracket', qty: 1, category: 'Fittings' });
   }
 
   // Timber braces
   if (material === 'T' && config !== 'TFLYW' && config !== 'TFLYS') {
     const braceSize = parseInt(lengthRaw) >= 30 ? "900mm" : "763mm";
-    const shortBolt = dimension === "A" ? (boltSizing.isPinArm ? "110mm" : "140mm") : (dimension === "E" ? "180mm" : "140mm");
-    items.push({ id: `BRACE-${braceSize.substring(0, 3)}`, name: `${braceSize} Arm Brace`, qty: isEDO ? 1 : 2, category: 'Hardware' });
-    items.push({ id: 'WASH-M12-50', name: 'M12x50x50 Square Washer', qty: isEDO ? 2 : 3, category: 'Hardware' });
-    items.push({ id: 'NUT-M12', name: 'M12 Nut', qty: isEDO ? 2 : 3, category: 'Hardware' });
-    items.push({ id: `BOLT-M12-${shortBolt}`, name: `Short M12x${shortBolt} Brace Bolt`, qty: isEDO ? 1 : 2, category: 'Hardware' });
-    items.push({ id: `BOLT-M12-${boltSizing.longBraceBoltSize}`, name: `Long M12x${boltSizing.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
+    const shortBoltSize = dimension === "A" ? (boltSizing.isPinArm ? 110 : 140) : (dimension === "E" ? 180 : 140);
+    items.push({ id: `BRACE-${braceSize.substring(0, 3)}`, name: `${braceSize} Arm Brace`, qty: isEDO ? 1 : 2, category: 'Fittings' });
+    items.push(m12washer(isEDO ? 2 : 3));
+    items.push(m12nut(isEDO ? 2 : 3));
+    items.push(m12bolt(shortBoltSize, isEDO ? 1 : 2));
+    items.push(m12bolt(boltSizing.longBraceBoltSize, 1));
   }
 
   // Steel braces
   if (material === 'S' && !isLVTX && config !== 'TFLYW' && config !== 'TFLYS') {
-    items.push({ id: 'BRACE-STEEL-ADJ', name: 'Adjustable Steel Arm Brace', qty: 2, category: 'Hardware' });
-    items.push({ id: 'BOLT-M12-ADJ-BRACE', name: 'M12 Adjustable Steel Arm Brace Bolt', qty: 2, category: 'Hardware' });
-    items.push({ id: `BOLT-M12-${boltSizing.longBraceBoltSize}`, name: `Long M12x${boltSizing.longBraceBoltSize}mm Brace Bolt`, qty: 1, category: 'Hardware' });
+    items.push({ id: 'BRACE-STEEL-ADJ', name: 'Adjustable Steel Arm Brace', qty: 2, category: 'Fittings' });
+    items.push({ id: 'BOLT-M12-ADJ', name: 'M12 Adjustable Brace Bolt', qty: 2, category: 'M12 Bolts' });
+    items.push(m12bolt(boltSizing.longBraceBoltSize, 1));
   }
 
   // TFLYW
   if (config === 'TFLYW') {
     const tflyBolt = dimension === 'A' ? 240 : 280;
-    items.push({ id: 'WASH-M20-80-FLY', name: 'M20x80x80 Large Washer (Fly Arm)', qty: 2, category: 'Hardware' });
-    items.push({ id: 'WASH-CONICAL-FLY', name: 'Conical Washer (Fly Arm)', qty: 2, category: 'Hardware' });
-    items.push({ id: `BOLT-M16-${tflyBolt}-FLY`, name: `M16x${tflyBolt}mm Bolt (Fly Arm)`, qty: 2, category: 'Hardware' });
-    items.push({ id: 'NUT-M16-FLY', name: 'M16 Nut (Fly Arm)', qty: 2, category: 'Hardware' });
+    items.push(m20washer(2));
+    items.push(conical(2));
+    items.push(m16bolt(tflyBolt, 2));
+    items.push(m16nut(2));
   }
 
   // TFLYS
   if (config === 'TFLYS') {
     const tflysBolt = dimension === 'A' ? 240 : 280;
-    items.push({ id: 'BRACKET-STEEL-FLY', name: 'Steel Fly Arm Bracket', qty: 1, category: 'Hardware' });
-    items.push({ id: 'WASH-M20-80-FLYS', name: 'M20x80x80 Large Washer (Fly Arm)', qty: 1, category: 'Hardware' });
-    items.push({ id: 'WASH-CONICAL-FLYS', name: 'Conical Washer (Fly Arm)', qty: 1, category: 'Hardware' });
-    items.push({ id: `BOLT-M16-${tflysBolt}-FLYS`, name: `M16x${tflysBolt}mm Bolt (Fly Arm)`, qty: 1, category: 'Hardware' });
-    items.push({ id: 'WASH-M16-50-FLYS', name: 'M16x50x50 Square Washer (Fly Arm)', qty: 2, category: 'Hardware' });
+    items.push({ id: 'BRACKET-STEEL-FLY', name: 'Steel Fly Arm Bracket', qty: 1, category: 'Fittings' });
+    items.push(m20washer(1));
+    items.push(conical(1));
+    items.push(m16bolt(tflysBolt, 1));
+    items.push(m16washer(2));
   }
 
   // LVTX T bracket
   if (isLVTX) {
-    items.push({ id: 'BRACKET-T-STEEL', name: 'Steel T Bracket', qty: 1, category: 'Hardware' });
-    items.push({ id: 'BOLT-M12-140-TB', name: 'M12x140mm Bolt (T Bracket)', qty: 2, category: 'Hardware' });
-    items.push({ id: 'WASH-M12-50-TB', name: 'M12x50x50 Square Washer (T Bracket)', qty: 4, category: 'Hardware' });
-    items.push({ id: `BOLT-M16-${boltSizing.tBracketBoltSize}-TB`, name: `M16x${boltSizing.tBracketBoltSize}mm Bolt (T Bracket Through-Pole)`, qty: 1, category: 'Hardware' });
-    items.push({ id: 'WASH-M16-50-TB', name: 'M16x50x50 Square Washer (T Bracket)', qty: 2, category: 'Hardware' });
+    items.push({ id: 'BRACKET-T-STEEL', name: 'Steel T Bracket', qty: 1, category: 'Fittings' });
+    items.push(m12bolt(140, 2));
+    items.push(m12washer(4));
+    items.push(m16bolt(boltSizing.tBracketBoltSize, 1));
+    items.push(m16washer(2));
   }
 
   // Double arm spacer
   if (armCount === 2) {
     const spacerPipeLength = pw - 5;
-    items.push({ id: `BOLT-M16-${boltSizing.spacerBoltSize}`, name: `Spacer Bolt (M16x${boltSizing.spacerBoltSize}mm)`, qty: 1, category: 'Hardware' });
-    items.push({ id: 'WASH-M16-50-SP', name: 'M16x50x50 Square Washer (Spacer)', qty: 4, category: 'Hardware' });
-    items.push({ id: `PIPE-SPACER-${spacerPipeLength}`, name: `Spacer Pipe (${spacerPipeLength}mm)`, qty: 1, category: 'Hardware' });
+    items.push(m16bolt(boltSizing.spacerBoltSize, 1));
+    items.push(m16washer(4));
+    items.push({ id: `PIPE-SPACER-${spacerPipeLength}`, name: `Spacer Pipe (${spacerPipeLength}mm)`, qty: 1, category: 'Fittings' });
   }
 
   return items;
@@ -303,11 +313,23 @@ const App = () => {
     return Array.from(itemMap.values());
   }, [poles, levels, isFinalized]);
 
+  const CATEGORY_ORDER = ['Arms', 'Insulators', 'M16 Bolts', 'M12 Bolts', 'Washers', 'Nuts', 'Fittings', 'Pole', 'Pole Hardware'];
+
   const groupedPickList = useMemo(() => {
     const groups = {};
     aggregatedPickList.forEach(item => {
       if (!groups[item.category]) groups[item.category] = [];
       groups[item.category].push(item);
+    });
+    // Sort M16 and M12 bolt groups by size descending
+    ['M16 Bolts', 'M12 Bolts'].forEach(cat => {
+      if (groups[cat]) {
+        groups[cat].sort((a, b) => {
+          const sizeA = parseInt(a.id.match(/\d+$/)?.[0] || 0);
+          const sizeB = parseInt(b.id.match(/\d+$/)?.[0] || 0);
+          return sizeB - sizeA;
+        });
+      }
     });
     return groups;
   }, [aggregatedPickList]);
@@ -618,7 +640,7 @@ const App = () => {
                   <tbody>
                     {aggregatedPickList.length === 0 ? (
                       <tr><td colSpan={3} className="p-8 text-center text-slate-400 text-sm">No items in pick list</td></tr>
-                    ) : Object.entries(groupedPickList).map(([category, items]) => (
+                    ) : CATEGORY_ORDER.filter(cat => groupedPickList[cat]).map(category => { const items = groupedPickList[category]; return (
                       <React.Fragment key={category}>
                         <tr className="bg-slate-50/80">
                           <td colSpan={3} className="px-5 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">{category}</td>
@@ -631,7 +653,7 @@ const App = () => {
                           </tr>
                         ))}
                       </React.Fragment>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
